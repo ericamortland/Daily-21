@@ -8,4 +8,82 @@ format:
     self-contained: true
 ---
 
-## 
+```{r}
+library(tidyverse)
+library(lubridate)
+library(tsibble)
+library(feasts)
+library(dataRetrieval)
+library(plotly)
+```
+
+```{r}
+poudre_flow <- readNWISdv(
+  siteNumber = "06752260",
+  parameterCd = "00060",
+  startDate = "2013-01-01",
+  endDate = "2023-12-31"
+) |>
+  renameNWISColumns() |>
+  mutate(Date = yearmonth(Date)) |>
+  group_by(Date) |>
+  summarise(Flow = mean(Flow, na.rm = TRUE)) |>
+  ungroup()
+
+# Convert to tsibble
+poudre_ts <- as_tsibble(poudre_flow, index = Date)
+
+```
+
+```{r}
+# Base plot
+flow_plot <- ggplot(poudre_ts, aes(x = Date, y = Flow)) +
+  geom_line(color = "steelblue") +
+  labs(title = "Monthly Average Streamflow (Cache la Poudre River)",
+       x = "Date",
+       y = "Discharge (cfs)") +
+  theme_minimal()
+
+# Animate with plotly
+ggplotly(flow_plot)
+```
+
+```{r}
+# Subseries plot
+poudre_ts |>
+  gg_subseries(Flow) +
+  labs(title = "Seasonal Subseries Plot of Streamflow",
+       y = "Discharge (cfs)")
+```
+## In the subseries plot, each line represents the monthly averages across all years for that month.Seasons are the 12 calendar months, and each point shows the average flow in that specific month over time. The subseries help us visualize seasonal variation—peaks are typically in late spring/early summer due to snowmelt, while lows are in winter.
+
+```{r}
+# STL decomposition
+stl_model <- model(poudre_ts, STL(Flow ~ season(window = "periodic")))
+
+# Visualize decomposition
+components(stl_model) |>
+  autoplot() +
+  labs(title = "STL Decomposition of Streamflow Data")
+```
+
+## The STL plot shows three parts:
+
+## Trend: The long-term change in streamflow. There's some fluctuation over the years, maybe tied to precipitation variability.
+
+## Seasonal: Recurring annual patterns, peaking in spring/summer.
+
+## Remainder: Unexplained variability (like extreme weather events or human activities like dam releases).
+
+## The seasonal component is very strong, showing snowmelt influence. The trend fluctuates mildly showing some drought impacts or climate variability.
+
+
+
+
+
+
+
+
+
+
+
